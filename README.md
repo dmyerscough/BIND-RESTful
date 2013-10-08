@@ -1,19 +1,20 @@
 BIND-RESTful
 ============
 
-BIND RESTful API
+BIND RESTful API to perform dyanmic DNS updates and display the entire zone file.
+
 
 Show Entire Zone
 ================
 
-```curl http://127.0.0.1:5000/dns/zone/internal.net
+```bash curl http://127.0.0.1:5000/dns/zone/internal.net
 
 Create DNS Entry
 ================
 
-```curl -i -H "Content-Type: application/json" -X POST http://127.0.0.1:5000/dns/record/create/mynewhost.internal.net/300/A/192.168.0.15
+```bash curl -i -H "Content-Type: application/json" -X POST http://127.0.0.1:5000/dns/record/create/mynewhost.internal.net/300/A/192.168.0.15
 
 Update DNS Entry
 ================
 
-```curl -i -H "Content-Type: application/json" -X POST http://127.0.0.1:5000/dns/record/update/mynewhost.internal.net/300/A/192.168.0.13
+```bash curl -i -H "Content-Type: application/json" -X POST http://127.0.0.1:5000/dns/record/update/mynewhost.internal.net/300/A/192.168.0.13
