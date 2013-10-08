@@ -7,14 +7,14 @@ BIND RESTful API to perform dyanmic DNS updates and display the entire zone file
 Show Entire Zone
 ================
 
-```bash curl http://127.0.0.1:5000/dns/zone/internal.net
+` curl http://127.0.0.1:5000/dns/zone/internal.net
 
 Create DNS Entry
 ================
 
-```bash curl -i -H "Content-Type: application/json" -X POST http://127.0.0.1:5000/dns/record/create/mynewhost.internal.net/300/A/192.168.0.15
+` curl -i -H "Content-Type: application/json" -X POST http://127.0.0.1:5000/dns/record/create/mynewhost.internal.net/300/A/192.168.0.15
 
 Update DNS Entry
 ================
 
-```bash curl -i -H "Content-Type: application/json" -X POST http://127.0.0.1:5000/dns/record/update/mynewhost.internal.net/300/A/192.168.0.13
+` curl -i -H "Content-Type: application/json" -X POST http://127.0.0.1:5000/dns/record/update/mynewhost.internal.net/300/A/192.168.0.13
