@@ -16,11 +16,11 @@ Create DNS Entry
 
 The simple POST request will create a domain called 'mynewhost.internal.net' with the IP address of 192.168.0.15
 
-`curl -i -H "Content-Type: application/json" -X POST http://127.0.0.1:5000/dns/record/create/mynewhost.internal.net/300/A/192.168.0.15`
+`curl -i -H "Content-Type: application/json" -X POST http://127.0.0.1:5000/dns/record/mynewhost.internal.net/300/A/192.168.0.15`
 
 Update DNS Entry
 ================
 
 The simple PUT request updates the 'mynewhost.internal.net' to 192.168.0.13
 
-`curl -i -H "Content-Type: application/json" -X PUT http://127.0.0.1:5000/dns/record/update/mynewhost.internal.net/300/A/192.168.0.13`
+`curl -i -H "Content-Type: application/json" -X PUT http://127.0.0.1:5000/dns/record/mynewhost.internal.net/300/A/192.168.0.13`
