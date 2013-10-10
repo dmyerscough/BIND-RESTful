@@ -9,19 +9,9 @@ import dns.zone
 
 from dns.rdatatype import *
 
-from flask import Flask, jsonify
-from werkzeug.routing import BaseConverter
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
-
-
-class RegexConverter(BaseConverter):
-    def __init__(self, url_map, *items):
-        super(RegexConverter, self).__init__(url_map)
-        self.regex = items[0]
-
-
-app.url_map.converters['regex'] = RegexConverter
 
 
 def parse_config(config):
@@ -33,11 +23,11 @@ def parse_config(config):
     parser = ConfigParser.ConfigParser()
     parser.read(config)
 
-    options['nameserver'] = parser.get('Nameserver', 'nameserver')
-    options['username'] = parser.get('Auth', 'username')
-    options['password'] = parser.get('Auth', 'password')
+    options['nameserver'] = parser.get('nameserver', 'server')
+    options['username'] = parser.get('auth', 'username')
+    options['password'] = parser.get('auth', 'password')
 
-    options['zones'] = [i + '.' for i in parser.get('Zones', 'valid').split(",")]
+    options['zones'] = [i + '.' for i in parser.get('zones', 'valid').split(",")]
 
     return options
 
@@ -108,8 +98,8 @@ def get_record(domain):
         return jsonify({'error': 'zone not permitted'})
 
 
-@app.route('/dns/record/<regex("update|create"):action>/<string:domain>/<int:ttl>/<string:record_type>/<string:response>', methods=['PUT', 'POST'])
-def dns_mgmt(action, domain, ttl, record_type, response):
+@app.route('/dns/record/<string:domain>/<int:ttl>/<string:record_type>/<string:response>', methods=['PUT', 'POST', 'DELETE'])
+def dns_mgmt(domain, ttl, record_type, response):
     """
     Allow users to update existing records
     """
@@ -131,26 +121,33 @@ def dns_mgmt(action, domain, ttl, record_type, response):
     If the user is only updating make sure the record exists before
     attempting to perform a dynamic update. This will
     """
-    if action == 'update':
+    if request.method == 'PUT' or request.method == 'DELETE':
+        resolver = dns.resolver.Resolver()
+
+        resolver.nameservers = [config['nameserver']]
         try:
-            answer = dns.resolver.query('.'.join([domain, zone]), record_type)
+            answer = resolver.query(domain, record_type)
         except dns.resolver.NXDOMAIN:
-            return jsonify({'error': 'does not exist'})
+            return jsonify({'error': 'domain does not exist'})
 
     tsig = dns.tsigkeyring.from_text({config['username']: config['password']})
 
-    update = dns.update.Update(zone, keyring=tsig)
-    update.replace(dns.name.from_text(domain).labels[0], ttl, str(record_type), str(response))
+    action = dns.update.Update(zone, keyring=tsig)
+
+    if request.method == 'DELETE':
+        action.delete(dns.name.from_text(domain).labels[0])
+    elif request.method == 'PUT' or request.method == 'POST':
+        action.replace(dns.name.from_text(domain).labels[0], ttl, str(record_type), str(response))
 
     try:
-        response = dns.query.tcp(update, config['nameserver'])
+        response = dns.query.tcp(action, config['nameserver'])
     except:
-        return jsonify({'error': 'unable to update domain'})
+        return jsonify({'error': 'DNS transaction failed'})
 
     if response.rcode() == 0:
-        return jsonify({domain: 'successfully updated'})
+        return jsonify({domain: 'DNS request successful'})
     else:
-        return jsonify({domain: 'failed to update'})
+        return jsonify({domain: 'DNS request failed'})
 
 
 if __name__ == '__main__':
