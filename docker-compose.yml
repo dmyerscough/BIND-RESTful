@@ -1,0 +1,7 @@
+version: '2'
+services:
+  dns-api:
+    build: .
+    ports:
+     - 5000:5000
+    restart: always
