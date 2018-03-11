@@ -12,11 +12,11 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-DNS_SERVER    = os.environ['server']
-TSIG_USERNAME = os.environ['username']
-TSIG_PASSWORD = os.environ['password']
-VALID_ZONES   = [i + '.' for i in os.environ['zones'].split(',')]
-RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'SOA']
+DNS_SERVER    = os.environ['SERVER']
+TSIG_USERNAME = os.environ['USERNAME']
+TSIG_PASSWORD = os.environ['PASSWORD']
+VALID_ZONES   = [i + '.' for i in os.environ['ZONES'].split(',')]
+RECORD_TYPES  = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'SOA']
 
 @app.route('/dns/zone/<string:zone_name>', methods=['GET'])
 def get_zone(zone_name):
@@ -39,7 +39,7 @@ def get_zone(zone_name):
 
     for (name, ttl, rdata) in zone.iterate_rdatas():
         if rdata.rdtype != SOA:
-            if records.get(str(name), 0):
+            if records.get(str(name), False):
                 records[str(name)] = records[str(name)] + [{'Answer': str(rdata), 'RecordType': rdata.rdtype, 'TTL': ttl}]
             else:
                 records[str(name)] = [{'Answer': str(rdata), 'RecordType': rdata.rdtype, 'TTL': ttl}]
@@ -50,28 +50,28 @@ def get_zone(zone_name):
 @app.route('/dns/record/<string:domain>', methods=['GET'])
 def get_record(domain):
     """
-    Allow users to request the records for a particualr record
+    Allow users to request the records for a particular record
     """
     record = {}
 
-    valid = [True for i in VALID_ZONES if domain.endswith(i)]
+    valid = len(filter(domain.endswith, VALID_ZONES)) > 0
 
     """
     Only allow the valid zones to be queried, this should stop
     TLD outside of your nameserver from being queried
     """
-    if valid:
-        for record_type in RECORD_TYPES:
-            try:
-                answers = dns.resolver.query(domain, record_type)
-            except dns.resolver.NoAnswer:
-                continue
-
-            record.update({record_type: [str(i) for i in answers.rrset]})
-
-        return jsonify({domain: record})
-    else:
+    if not valid:
         return jsonify({'error': 'zone not permitted'})
+
+    for record_type in RECORD_TYPES:
+        try:
+            answers = dns.resolver.query(domain, record_type)
+        except dns.resolver.NoAnswer:
+            continue
+
+        record.update({record_type: map(str, answers.rrset)})
+
+    return jsonify({domain: record})
 
 
 @app.route('/dns/record/<string:domain>/<int:ttl>/<string:record_type>/<string:response>', methods=['PUT', 'POST', 'DELETE'])
@@ -106,7 +106,7 @@ def dns_mgmt(domain, ttl, record_type, response):
     if request.method == 'DELETE':
         action.delete(dns.name.from_text(domain).labels[0])
     elif request.method == 'PUT' or request.method == 'POST':
-        action.replace(dns.name.from_text(domain).labels[0], ttl, str(record_type), str(response))
+        action.add(dns.name.from_text(domain).labels[0], ttl, str(record_type), str(response))
 
     try:
         response = dns.query.tcp(action, DNS_SERVER)
