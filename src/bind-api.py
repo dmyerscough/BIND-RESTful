@@ -13,8 +13,8 @@ from flask import Flask, jsonify, request
 app = Flask(__name__)
 
 DNS_SERVER    = os.environ['SERVER']
-TSIG_USERNAME = os.environ['USERNAME']
-TSIG_PASSWORD = os.environ['PASSWORD']
+TSIG_USERNAME = os.environ['TSIG_USERNAME']
+TSIG_PASSWORD = os.environ['TSIG_PASSWORD']
 VALID_ZONES   = [i + '.' for i in os.environ['ZONES'].split(',')]
 RECORD_TYPES  = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'SOA']
 

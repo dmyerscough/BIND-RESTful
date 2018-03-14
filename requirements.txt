@@ -1,2 +1,2 @@
 Flask==0.12.2
-dnspython==1.11.1
+dnspython==1.15.0
