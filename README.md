@@ -1,13 +1,13 @@
 BIND-RESTful
 ============
 
-BIND RESTful API to perform dyanmic DNS updates and display the entire zone file.
+BIND RESTful API to perform dynamic DNS updates and display the entire zone file.
 
 
 Show Entire Zone
 ================
 
-The simple GET reuqest will cause a zone transfer to occur and will provide JSON output for an entire zone file
+The simple GET request will cause a zone transfer to occur and will provide JSON output for an entire zone file
 
 `curl http://127.0.0.1:5000/dns/zone/internal.net`
 

@@ -1,36 +1,22 @@
 #!/usr/bin/env python
 
-import ConfigParser
 import dns.tsigkeyring
 import dns.resolver
 import dns.update
 import dns.query
 import dns.zone
+import os
 
 from dns.rdatatype import *
-
 from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-
-def parse_config(config):
-    """
-    Parse the user config and retreieve the nameserver, username and
-    password required to perform dynamic DNS updates
-    """
-    options = {}
-    parser = ConfigParser.ConfigParser()
-    parser.read(config)
-
-    options['nameserver'] = parser.get('nameserver', 'server')
-    options['username'] = parser.get('auth', 'username')
-    options['password'] = parser.get('auth', 'password')
-
-    options['zones'] = [i + '.' for i in parser.get('zones', 'valid').split(",")]
-
-    return options
-
+DNS_SERVER    = os.environ['SERVER']
+TSIG_USERNAME = os.environ['TSIG_USERNAME']
+TSIG_PASSWORD = os.environ['TSIG_PASSWORD']
+VALID_ZONES   = [i + '.' for i in os.environ['ZONES'].split(',')]
+RECORD_TYPES  = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'SOA']
 
 @app.route('/dns/zone/<string:zone_name>', methods=['GET'])
 def get_zone(zone_name):
@@ -38,27 +24,22 @@ def get_zone(zone_name):
     Query a DNS zone file and get every record and return it in JSON
     format
     """
-    config = parse_config('config.ini')
-
-    record_types = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'SOA']
-    valid_zones = config['zones']
-
     records = {}
 
     if not zone_name.endswith('.'):
         zone_name = zone_name + '.'
 
-    if zone_name not in valid_zones:
+    if zone_name not in VALID_ZONES:
         return jsonify({'error': 'zone file not permitted'})
 
     try:
-        zone = dns.zone.from_xfr(dns.query.xfr(config['nameserver'], zone_name))
+        zone = dns.zone.from_xfr(dns.query.xfr(DNS_SERVER, zone_name))
     except dns.exception.FormError:
         return jsonify({'fail': zone_name})
 
     for (name, ttl, rdata) in zone.iterate_rdatas():
         if rdata.rdtype != SOA:
-            if records.get(str(name), 0):
+            if records.get(str(name), False):
                 records[str(name)] = records[str(name)] + [{'Answer': str(rdata), 'RecordType': rdata.rdtype, 'TTL': ttl}]
             else:
                 records[str(name)] = [{'Answer': str(rdata), 'RecordType': rdata.rdtype, 'TTL': ttl}]
@@ -69,33 +50,28 @@ def get_zone(zone_name):
 @app.route('/dns/record/<string:domain>', methods=['GET'])
 def get_record(domain):
     """
-    Allow users to request the records for a particualr record
+    Allow users to request the records for a particular record
     """
-    config = parse_config('config.ini')
-
-    record_types = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'SOA']
-    valid_zones = config['zones']
-
     record = {}
 
-    valid = [True for i in valid_zones if domain.endswith(i)]
+    valid = len(filter(domain.endswith, VALID_ZONES)) > 0
 
     """
     Only allow the valid zones to be queried, this should stop
     TLD outside of your nameserver from being queried
     """
-    if valid:
-        for record_type in record_types:
-            try:
-                answers = dns.resolver.query(domain, record_type)
-            except dns.resolver.NoAnswer:
-                continue
-
-            record.update({record_type: [str(i) for i in answers.rrset]})
-
-        return jsonify({domain: record})
-    else:
+    if not valid:
         return jsonify({'error': 'zone not permitted'})
+
+    for record_type in RECORD_TYPES:
+        try:
+            answers = dns.resolver.query(domain, record_type)
+        except dns.resolver.NoAnswer:
+            continue
+
+        record.update({record_type: map(str, answers.rrset)})
+
+    return jsonify({domain: record})
 
 
 @app.route('/dns/record/<string:domain>/<int:ttl>/<string:record_type>/<string:response>', methods=['PUT', 'POST', 'DELETE'])
@@ -103,18 +79,12 @@ def dns_mgmt(domain, ttl, record_type, response):
     """
     Allow users to update existing records
     """
-    config = parse_config('config.ini')
-
-    record_types = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'SOA']
-    valid_zones = config['zones']
-
-    zone = ''
     zone = '.'.join(dns.name.from_text(domain).labels[1:])
 
-    if record_type not in record_types:
+    if record_type not in RECORD_TYPES:
         return jsonify({'error': 'not a valid record type'})
 
-    if zone not in valid_zones:
+    if zone not in VALID_ZONES:
         return jsonify({'error': 'not a valid zone'})
 
     """
@@ -123,24 +93,23 @@ def dns_mgmt(domain, ttl, record_type, response):
     """
     if request.method == 'PUT' or request.method == 'DELETE':
         resolver = dns.resolver.Resolver()
-
-        resolver.nameservers = [config['nameserver']]
+        resolver.nameservers = [DNS_SERVER]
+        
         try:
             answer = resolver.query(domain, record_type)
         except dns.resolver.NXDOMAIN:
             return jsonify({'error': 'domain does not exist'})
 
-    tsig = dns.tsigkeyring.from_text({config['username']: config['password']})
-
+    tsig = dns.tsigkeyring.from_text({TSIG_USERNAME: TSIG_PASSWORD})
     action = dns.update.Update(zone, keyring=tsig)
 
     if request.method == 'DELETE':
         action.delete(dns.name.from_text(domain).labels[0])
     elif request.method == 'PUT' or request.method == 'POST':
-        action.replace(dns.name.from_text(domain).labels[0], ttl, str(record_type), str(response))
+        action.add(dns.name.from_text(domain).labels[0], ttl, str(record_type), str(response))
 
     try:
-        response = dns.query.tcp(action, config['nameserver'])
+        response = dns.query.tcp(action, DNS_SERVER)
     except:
         return jsonify({'error': 'DNS transaction failed'})
 
@@ -151,4 +120,4 @@ def dns_mgmt(domain, ttl, record_type, response):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', debug=False)
