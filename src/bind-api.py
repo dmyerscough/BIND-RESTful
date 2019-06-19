@@ -96,7 +96,7 @@ def dns_mgmt(domain, ttl, record_type, response):
         resolver.nameservers = [DNS_SERVER]
         
         try:
-            answer = resolver.query(domain, record_type)
+            answer = dns.resolver.query(domain, record_type)
         except dns.resolver.NXDOMAIN:
             return jsonify({'error': 'domain does not exist'})
 
@@ -105,9 +105,11 @@ def dns_mgmt(domain, ttl, record_type, response):
 
     if request.method == 'DELETE':
         action.delete(dns.name.from_text(domain).labels[0])
-    elif request.method == 'PUT' or request.method == 'POST':
-        action.add(dns.name.from_text(domain).labels[0], ttl, str(record_type), str(response))
+    elif request.method == 'PUT':
+        action.replace(dns.name.from_text(domain).labels[0], ttl, str(record_type), str(response))
 
+    elif request.method == 'POST':
+        action.add(dns.name.from_text(domain).labels[0], ttl, str(record_type), str(response))
     try:
         response = dns.query.tcp(action, DNS_SERVER)
     except:
